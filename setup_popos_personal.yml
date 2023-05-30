@@ -1,0 +1,80 @@
+---
+- name: Setup personal workstation
+  hosts: localhost
+  become: yes
+  vars:
+    dotfiles_repo: https://github.com/jerhage/dotfiles
+    user: jh 
+
+  tasks:
+  - name: Update apt
+    apt: update_cache=yes force_apt_get=yes
+
+  - name: Install zsh
+    apt: name=zsh state=present
+
+  - name: Change shell to zsh
+    shell: chsh -s $(which zsh) {{ user }}
+
+  - name: Install required packages
+    apt:
+      name:
+        - git
+        - curl
+        - tmux
+        - asdf
+        - exa
+        - stow
+        - mpv
+        - ripgrep
+      state: present
+
+  - name: Install flatpak
+    apt:
+      name:
+        - flatpak
+      state: present
+
+  - name: Install flatpak apps
+    command: flatpak install -y {{ item }}
+    loop:
+      - com.obsidian.md
+      - com.dropbox.Client
+      - com.spotify.Client
+
+  - name: Clone dotfiles
+    git:
+      repo: "{{ dotfiles_repo }}"
+      dest: "/home/{{ user }}/dotfiles"
+
+  - name: Run stow on each non-directory in dotfiles
+    command: stow -t $HOME {{ item }}
+    args:
+      chdir: /home/{{ user }}/dotfiles/
+    with_fileglob:
+      - "/home/{{ user }}/dotfiles/*"
+
+  - name: Install Node.js (latest LTS) and Python (latest version) using asdf
+    become: no
+    shell: |
+      . $HOME/.asdf/asdf.sh
+      asdf plugin add nodejs
+      asdf install nodejs lts
+      asdf global nodejs lts
+      asdf plugin add python
+      asdf install python latest
+      asdf global python latest
+
+  - name: Install starship
+    shell: curl -sS https://starship.rs/install.sh | sh
+
+  - name: Install zoxide
+    get_url:
+      url: https://github.com/ajeetdsouza/zoxide/releases/download/v0.7.8/zoxide-x86_64-unknown-linux-musl.tar.gz
+      dest: /tmp
+    unarchive:
+      src: /tmp/zoxide-x86_64-unknown-linux-musl.tar.gz
+      dest: /usr/local/bin/
+      remote_src: yes
+      creates: /usr/local/bin/zoxide
+
